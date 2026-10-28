@@ -36,7 +36,7 @@ try{
  assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
  const fits=await page.$eval('#start',e=>{const a=e.getBoundingClientRect(),b=document.querySelector('.screen').getBoundingClientRect();return a.bottom<=b.bottom&&a.top>=b.top;});assert(fits,'phone picker fits the pitch');
  await page.click('#start');const session=await page.createCDPSession();
- const points=await page.$$eval('[data-control="right"],[data-control="shoot"]',buttons=>buttons.map((b,i)=>{const r=b.getBoundingClientRect();return{x:r.x+r.width/2,y:r.y+r.height/2,id:i+1};}));
+ const points=await page.$$eval('.joystick,[data-control="shoot"]',buttons=>buttons.map((b,i)=>{const r=b.getBoundingClientRect();return{x:r.x+r.width*(b.classList.contains('joystick')?.8:.5),y:r.y+r.height/2,id:i+1};}));
  const beforeTouch=await playerX();await session.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:points});assert.equal(await page.$$eval('.active',e=>e.length),2);await new Promise(r=>setTimeout(r,400));
  assert(await playerX()>beforeTouch+70,'touch moves while shooting');await session.send('Input.dispatchTouchEvent',{type:'touchCancel',touchPoints:[]});assert.equal(await page.$$eval('.active',e=>e.length),0);
  await page.screenshot({path:'/tmp/world-champion-mobile.png',fullPage:true});

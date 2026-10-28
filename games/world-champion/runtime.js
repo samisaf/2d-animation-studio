@@ -3301,7 +3301,7 @@ for(const id of ['sami','safadi']) $('portrait-'+id).src=sprites[id][0].toDataUR
 X=ctx;
 const keys=new Set(),pointers=new Map(); let last=0,accumulator=0,previousNotice='',hero='sami';
 const mapping={ArrowUp:'up',KeyW:'up',ArrowDown:'down',KeyS:'down',ArrowLeft:'left',KeyA:'left',ArrowRight:'right',KeyD:'right',Space:'shoot',KeyX:'chip',ShiftLeft:'sprint',ShiftRight:'sprint'};
-function release(){keys.clear();pointers.clear();document.querySelectorAll('[data-control]').forEach(b=>b.classList.remove('active'));}
+function release(){resetJoystick();keys.clear();pointers.clear();document.querySelectorAll('[data-control]').forEach(b=>b.classList.remove('active'));}
 function controls(){const result={};for(const k of keys) result[mapping[k]]=true;for(const v of pointers.values())for(const direction of v.split('-'))result[direction]=true;return result;}
 function announce(message){$('announcement').textContent=message;}
 function choose(id){release();audio.stop();hero=id;match.reset(id);document.querySelectorAll('[data-hero]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.hero===id)));sync();}
@@ -3317,14 +3317,48 @@ window.addEventListener('keydown',e=>{
   if(mapping[e.code]&&match.state==='playing'&&!focused){e.preventDefault();keys.add(e.code);}
 });
 window.addEventListener('keyup',e=>keys.delete(e.code));
+
+const joystick = document.querySelector('.joystick');
+let steeringPointer = null;
+function resetJoystick() {
+  steeringPointer = null;
+  joystick.classList.remove('active');
+  joystick.style.setProperty('--stick-x', '0px');
+  joystick.style.setProperty('--stick-y', '0px');
+  joystick.dataset.direction = '';
+}
+function steer(e) {
+  const r = joystick.getBoundingClientRect(), radius = r.width / 2;
+  const dx = e.clientX - r.x - radius, dy = e.clientY - r.y - radius;
+  const distance = Math.hypot(dx, dy), travel = radius * .5;
+  const scale = distance > travel ? travel / distance : 1;
+  joystick.style.setProperty('--stick-x', `${dx * scale}px`);
+  joystick.style.setProperty('--stick-y', `${dy * scale}px`);
+  const directions = [];
+  if (distance > radius * .18) {
+    if (Math.abs(dy) > distance * .38) directions.push(dy < 0 ? 'up' : 'down');
+    if (Math.abs(dx) > distance * .38) directions.push(dx < 0 ? 'left' : 'right');
+  }
+  const direction = directions.join('-');
+  pointers.set(e.pointerId, direction);
+  joystick.dataset.direction = direction;
+
+}
+joystick.addEventListener('pointerdown', e => {
+  if (match.state !== 'playing' || steeringPointer !== null || (e.pointerType === 'mouse' && e.button !== 0)) return;
+  audio.unlock();
+  e.preventDefault(); steeringPointer = e.pointerId;
+  joystick.setPointerCapture(e.pointerId); joystick.classList.add('active'); steer(e);
+});
+joystick.addEventListener('pointermove', e => { if (steeringPointer === e.pointerId) { e.preventDefault(); steer(e); } });
+function endSteering(e) {
+  if (steeringPointer !== e.pointerId) return;
+  pointers.delete(e.pointerId); resetJoystick();
+}
+for (const event of ['pointerup', 'pointercancel', 'lostpointercapture']) joystick.addEventListener(event, endSteering);
 for(const b of document.querySelectorAll('[data-control]')){
   b.addEventListener('pointerdown',e=>{if(match.state!=='playing'||(e.pointerType==='mouse'&&e.button!==0))return;audio.unlock();e.preventDefault();b.setPointerCapture(e.pointerId);pointers.set(e.pointerId,b.dataset.control);b.classList.add('active');});
   const feedback=()=>document.querySelectorAll('[data-control]').forEach(button=>button.classList.toggle('active',[...pointers.values()].includes(button.dataset.control)));
-  b.addEventListener('pointermove',e=>{
-    if(!pointers.has(e.pointerId)||!b.closest('.dpad'))return;
-    const target=document.elementFromPoint(e.clientX,e.clientY)?.closest('.dpad [data-control]');
-    if(target){pointers.set(e.pointerId,target.dataset.control);feedback();}
-  });
   const end=e=>{pointers.delete(e.pointerId);feedback();};
   b.addEventListener('pointerup',end);b.addEventListener('pointercancel',end);b.addEventListener('lostpointercapture',end);
 }
