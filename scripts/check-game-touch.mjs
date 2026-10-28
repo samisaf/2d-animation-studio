@@ -11,7 +11,7 @@ export async function checkGameTouch(page, game) {
   ]) {
     await page.setViewport({ ...viewport, isMobile: true, hasTouch: true });
     await page.goto(url);
-    await page.tap(soccer ? '[data-hero="sami"]' : '[data-hero="neptune"]');
+    await page.tap(soccer ? '[data-team="0"]' : '[data-hero="neptune"]');
     await page.tap(soccer ? '#start' : '#confirm-hero');
     await page.evaluate(() => scrollTo(0, 0));
     const geometry = await page.evaluate(() => {

@@ -6,6 +6,14 @@
   <meta name="description" content="Dr. Sami and Professor Safadi reluctantly present their arcade. Their actual recommendation? Less screen time.">
   <title>Safadis' Arcade · Browser Games</title>
   <style>
+/* Prevent long-press selection and image dragging during touch play. */
+*, *::before, *::after {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+img, a { -webkit-user-drag: none; }
+
     :root { color-scheme: dark; font-family: 'DM Sans', system-ui, sans-serif; background: #211b23; color: #f1f0e7; }
     * { box-sizing: border-box; }
     body { margin: 0; min-height: 100vh; background: radial-gradient(ellipse at 50% 15%, #43323a 0, transparent 65%); }
@@ -58,9 +66,9 @@
         <a href="robo-invaders/">Play →</a>
       </article>
       <article>
-        <span class="edition">Safadis’ Cup · One vs. four</span>
+        <span class="edition">Safadis’ Cup · Grown-ups vs. kids</span>
         <h2 style="color: #e9cb73">World Champion</h2>
-        <p>Dr. Sami or Professor Safadi vs. the Kids’ Team. Dribble, shoot and chip your way to glory—with whistles, goal cheers and a sliding touch joystick.</p>
+        <p>Choose grown-ups or kids! Control your team’s ball carrier, pass to supporting teammates and score in a 90-second football match.</p>
         <a href="world-champion/">Play →</a>
       </article>
     </section>

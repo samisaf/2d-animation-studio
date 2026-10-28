@@ -100,3 +100,11 @@ button { min-height: 44px; min-width: 44px; }
 
 /* Reclaim title space throughout a game session on every screen size. */
 .play-session .intro { display: none; }
+
+/* Prevent long-press selection and image dragging during touch play. */
+*, *::before, *::after {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+img, a { -webkit-user-drag: none; }
