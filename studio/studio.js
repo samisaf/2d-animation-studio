@@ -38,7 +38,7 @@
   // =====================================================================================
   // Interactive studio
   const S = { mode: 'scene', id: null, t: 0, playing: false, speed: 1, loop: false, dirty: true, exporting: false, playMode: q.get('play') === 'true', movieActive: -1,
-    char: { pose: null, view: 'pose', backdrop: '', zoom: 1 }, loc: { cam: null, character: '', pose: '', spot: '' } };
+    char: { pose: null, view: 'pose', backdrop: '', zoom: 1 }, loc: { cam: null, character: '', pose: '', spot: '', variant: '' } };
   const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
   const fmt = n => (Math.round(n * 100) / 100).toString();
   const movieClips = (() => {
@@ -64,7 +64,12 @@
   const PROJECT_DOCS = [['README.md', 'Project README'], ['SERIES.md', 'Series bible'], ['ANIMATION_GUIDE.md', 'Animation guide'], ['docs/HANDBOOK.md', 'Handbook']];
   function buildSidebar() {
     const movie = REGISTRY.movie, li = (mode, id, ico, title, sub, tip) => `<li data-mode="${mode}" data-id="${esc(id)}" title="${esc(tip || '')}"><span class="ico">${ico}</span>${esc(title)}<span class="sub">${sub}</span></li>`;
-    $('#list-scenes').innerHTML = REGISTRY.scenes.filter(id => SCENES[id]).map(id => { const m = META('scene', id), n = movie.indexOf(id); return li('scene', id, '🎬', m.title, `${n >= 0 ? '#' + (n + 1) + ' · ' : ''}${SCENES[id].duration}s`, m.logline); }).join('');
+    // Scenes grouped by category, then series (headings are plain items without data-mode, so they don't select anything).
+    const sceneLi = id => { const m = META('scene', id), n = movie.indexOf(id); return li('scene', id, '🎬', m.title, `${n >= 0 ? '#' + (n + 1) + ' · ' : ''}${SCENES[id].duration}s`, m.logline); };
+    const categories = [...new Set(REGISTRY.series.map(sid => SERIES[sid].category))];
+    $('#list-scenes').innerHTML = categories.map(cat => `<li class="grp cat">${esc(cat || 'Uncategorized')}</li>` +
+      REGISTRY.series.filter(sid => SERIES[sid].category === cat).map(sid => `<li class="grp" title="${esc(SERIES[sid].logline || '')}">${esc(SERIES[sid].title)}</li>` +
+        SERIES[sid].scenes.filter(id => SCENES[id]).map(sceneLi).join('')).join('')).join('');
     $('#list-characters').innerHTML = REGISTRY.characters.filter(id => CHARACTERS[id]).map(id => { const m = META('character', id); return li('character', id, '🎭', m.title, `${Object.keys(CHARACTERS[id].poses || {}).length} poses`, m.logline); }).join('');
     $('#list-locations').innerHTML = REGISTRY.locations.filter(id => LOCATIONS[id]).map(id => { const m = META('location', id); return li('location', id, '🏰', m.title, `${Object.keys(LOCATIONS[id].cameras || {}).length} cams`, m.logline); }).join('');
     $('#list-docs').innerHTML = PROJECT_DOCS.map(([f, t]) => li('doc', f, '📄', t, f.split('/').pop(), f)).join('');
@@ -146,7 +151,7 @@
       } else { X.fillStyle = '#100c12'; X.fillRect(0, 0, W, H); }
     }
     else if (S.mode === 'character') { const e = CHARACTERS[S.id]; paintFrame(S.t, t => S.char.view === 'sheet' ? drawModelSheet(e, t, { transparent: S.char.backdrop === 'transparent' }) : drawCharacterView(e, S.char.pose, t, { location: S.char.backdrop, zoom: S.char.zoom }), { transparent: S.char.backdrop === 'transparent' }); }
-    else if (S.mode === 'location') paintFrame(S.t, t => drawLocationView(LOCATIONS[S.id], S.loc.cam, t, { character: S.loc.character, pose: S.loc.pose, spot: S.loc.spot }));
+    else if (S.mode === 'location') paintFrame(S.t, t => drawLocationView(LOCATIONS[S.id], S.loc.cam, t, { character: S.loc.character, pose: S.loc.pose, spot: S.loc.spot, variant: S.loc.variant }));
     paintedFrame = frameKey();
     hud();
   }
@@ -374,6 +379,7 @@
       <div class="head"><div class="txt"><h2>${esc(META('location', S.id).title)}</h2><div class="muted">${esc(META('location', S.id).logline || '')}</div>
         <div class="muted mono">locations/${S.id} · spots: ${Object.entries(l.spots || { 'stage mark': { ...l.MARK, y: 0 } }).map(([n, p]) => `${esc(n)} (${p.x}, ${p.y ?? 0}, ${p.z})`).join(' · ')}</div>
         <div class="row links">${linksHtml('location', S.id)}</div></div>${refsHtml(META('location', S.id).refs)}${docBtn()}</div>
+      ${l.variants ? `<div class="chips" id="variants"><span class="muted">Version</span> ${Object.keys(l.variants).map(v => `<button class="chip" data-v="${esc(v)}">${esc(v)}</button>`).join('')}</div>` : ''}
       <div class="chips" id="cams">${Object.keys(l.cameras || {}).map(c => `<button class="chip" data-c="${esc(c)}">${esc(c)}</button>`).join('')}</div>
       <div class="sliders">${Object.keys(CAM_RANGES).map(k => `<label>${CAM_LABELS[k]}<input type="range" data-k="${k}" min="${CAM_RANGES[k][0]}" max="${CAM_RANGES[k][1]}" step="${CAM_RANGES[k][2]}"><output data-o="${k}"></output></label>`).join('')}</div>
       <div class="row">
@@ -387,6 +393,10 @@
     document.querySelectorAll('[data-c]').forEach(b => b.onclick = () => { S.loc.cam = { ...l.cameras[b.dataset.c] }; camUI(); });
     document.querySelectorAll('[data-k]').forEach(r => r.oninput = () => { S.loc.cam[r.dataset.k] = +r.value; camUI(); });
     $('#revcam').onclick = () => { S.loc.cam.dir = (S.loc.cam.dir ?? 1) < 0 ? 1 : -1; camUI(); };
+    const variantUI = () => { document.querySelectorAll('[data-v]').forEach(b => b.classList.toggle('on', b.dataset.v === S.loc.variant)); S.dirty = true; };
+    if (!l.variants?.[S.loc.variant]) S.loc.variant = Object.keys(l.variants || {})[0] || '';
+    document.querySelectorAll('[data-v]').forEach(b => b.onclick = () => { S.loc.variant = b.dataset.v; variantUI(); });
+    variantUI();
     $('#copycam').onclick = async () => { const txt = $('#camtxt').value; try { await navigator.clipboard.writeText(txt); } catch { $('#camtxt').select(); document.execCommand('copy'); } status('Camera copied: paste it into persp(…) in a scene', 'ok'); };
     const whoUI = () => {
       const sel = $('#whopose'), e = CHARACTERS[S.loc.character]; sel.hidden = !e; $('#spot').hidden = !e || !l.spots;

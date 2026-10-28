@@ -8,9 +8,9 @@ A 2D cartoon animated entirely in code. Every frame is a pure function of time, 
 |---|---|
 | [`characters/`](characters/) | One self-contained folder per character: `asset.js` (manifest), `README.md` (who they are, look, rig API), the rig code and reference art |
 | [`locations/`](locations/) | One folder per set: `asset.js`, `README.md` (description, layout, spots, cameras), the 3D set code and reference art |
-| [`scenes/`](scenes/) | One folder per scene: `asset.js` (title, cast, locations, optional synthesized music or audio), `README.md` (synopsis, script, shot list), `scene.js` |
+| [`scenes/`](scenes/) | One folder per series (`series.js`: title, category, scene order), and inside it one folder per scene: `asset.js` (title, cast, locations, optional synthesized music or audio), `README.md` (synopsis, script, shot list), `scene.js` |
 | [`engine/`](engine/) | Shared code: drawing primitives and timing (`core.js`), 3D perspective (`persp.js`), speech bubbles (`callout.js`), scene registry and frame dispatch (`timeline.js`) |
-| [`registry.js`](registry.js) | The asset folder names and the movie's scene order |
+| [`registry.js`](registry.js) | The asset folder names, the scene series, and which series make the movie |
 | [`studio.html`](studio.html) + [`studio/`](studio/) | **The studio**: browse scenes, characters and locations; play; export MP4 right in the browser |
 | [`serve.mjs`](serve.mjs) | Tiny local server for the studio (`npm run studio`) |
 | [`render.mjs`](render.mjs) | Renderer: contact sheets, stills, clips, full frames, encoding, movie assembly |
@@ -170,6 +170,8 @@ Scene 01's `asset.js` contains a human-readable music prompt plus a deterministi
 
 Scene 01 also has a `dialogue` list in its `asset.js`. Each line supplies the bubble text, speaker, start time, typing speed, and hold time. Jester's `voice` in `characters/jester_fester/asset.js` defines his pitch and tone. The soundtrack synthesizer makes short vowel-like syllables as the words appear, and lowers the music during speech. The bubbles remain responsible for the actual words. Playback and both MP4 exporters use the same rendered soundtrack. Add matching `dialogue` entries and a character `voice` profile to try this in another scene.
 
+**Recorded voices (Gemini TTS):** a scene can replace the cartoon syllables with real speech. Add `tts: { model, voice, style }` to its `asset.js`, list `voice.js` in its `files`, and run `node scripts/tts_gemini.mjs <scene>` with `GEMINI_API_KEY` set. The script records each line (cached in `scenes/<scene>/voice/`), writes `voice.js`, and re-times the dialogue so each bubble types while its line is spoken. Scene 27 uses `gemini-3.1-flash-tts-preview` with the Charon voice.
+
 Every scene with spoken bubbles now uses the same vocalization system. Fester sounds bouncy, Pearl clipped and regal, Safadi measured and warm, Housam quick and percussive, and Alma melodic. Dragon has a gentle low voice profile ready for a future spoken line. Scene 06 is a 110-second lesson outside DCES.
 
 ```bash
@@ -189,7 +191,8 @@ scripts/preview.sh clip scene01_juggling 20:26
 ```bash
 scripts/new.sh character princess_petunia     # characters/princess_petunia/ {asset.js, README.md, rig} + registry
 scripts/new.sh location castle_kitchen        # locations/castle_kitchen/ {asset.js, README.md, set} + registry
-scripts/new.sh scene scene03_auditions        # scenes/scene03_auditions/ {asset.js, README.md, scene.js} + movie order
+scripts/new.sh series auditions "Professor Safadi Studio"   # scenes/auditions/series.js + registry (add to movieSeries for the movie)
+scripts/new.sh scene auditions scene45_auditions  # scenes/auditions/scene45_auditions/ {asset.js, README.md, scene.js} + series.js
 ```
 
 Each new folder is self-contained: describe the asset in its `README.md` (for a scene: synopsis, script, shot list), put reference art in the folder and list it in `asset.js`, then write the code. See [ANIMATION_GUIDE.md](ANIMATION_GUIDE.md) and [docs/HANDBOOK.md §8](docs/HANDBOOK.md#8-assets-characters-locations-scenes).

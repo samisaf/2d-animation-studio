@@ -66,7 +66,7 @@ Handy hand targets (wrists; mirror x for the left hand):
 ## Poses
 
 Registered in `safadi.js` (`CHARACTERS.safadi.poses`) and shown in the studio's character browser and model sheet:
-rest · talk · explain · point up · pointer · thinking · idea! · super explain · surprised · laugh · wink · walk · shrug.
+rest · talk · explain · point up · pointer · thinking · idea! · super explain · surprised · laugh · wink · walk · shrug · greek (the ancient-Greek outfit, for the *Eureka!* flashback in scene 29).
 
 ## Rig API (`safadi.js`)
 
@@ -91,12 +91,13 @@ const A = safadi(x, y, s, {
   bulb,                        // 0..1: the idea bulb pops on above his head
   // extras
   emote, emoteK,               // '?' | '!' | 'sweat' | 'music' | 'heart'
+  outfit,                      // default, or 'greek': a knee-length chiton with a gold hem, a red sash, bare arms, sandals, a laurel wreath
 });
 // A (screen px): head, mouth, top, eyeL, eyeR, chest, belly, handL, handR, pointerTip, bulb
 
 safadiBoard(x, y, w, k, t, { kind, title });   // floating chalkboard at screen (x, y), width w px
 // k 0..1: pops in (0–.2), then the drawing chalks itself on (.2–1)
-// kind: 'graph' | 'steps' | 'atom' | 'bulb' | 'story' | 'plate' (healthy plate) | 'crash' (sugar spike vs steady veggies) | 'passing' | 'dribbling' | 'shooting' | 'teamwork' (soccer lessons)
+// kind: 'graph' | 'steps' | 'atom' | 'bulb' | 'story' | 'plate' (healthy plate) | 'crash' (sugar spike vs steady veggies) | 'sugarbugs' (a tooth, candy and wiggling sugar bugs) | 'passing' | 'dribbling' | 'shooting' | 'teamwork' (soccer lessons) | 'offside' | 'brain' · 'words' · 'imagine' · 'shoes' (why reading matters) | 'history' · 'clear' · 'remember' (why writing matters) | 'explicit' · 'tacit' (two kinds of knowledge) · 'testing' (code → TEST → production, a bug crossed out)
 
 safadiWalk(p, k)   // walk-cycle pose options: p = steps travelled (distance / ~58 world units), k = stride amount 0..1
 safadi(x, y, s, { ...safadiWalk(dist / 58, speedK), turn: -.3 });

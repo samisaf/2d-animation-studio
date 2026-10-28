@@ -1,6 +1,6 @@
 // engine/timeline.js: asset manifests, registries, and the per-frame dispatcher.
 //
-// Every asset is a self-contained folder: characters/<id>/, locations/<id>/ or scenes/<id>/. Each folder holds an
+// Every asset is a self-contained folder: characters/<id>/, locations/<id>/ or scenes/<series>/<id>/. Each folder holds an
 // asset.js manifest that calls asset({...}) (title, logline, code files, docs, reference art, …), its code, its
 // README.md and its reference art. registry.js only lists the folder names (and the movie order).
 //
@@ -19,13 +19,27 @@ function asset(meta) {
   ASSETS[a.kind][a.id] = a;
   return a;
 }
+// Recorded voice clips for a scene's dialogue (written by scripts/tts_gemini.mjs into the scene's voice.js).
+// voiceClips({ '<line text without *>': { dur, src: 'data:audio/mpeg;base64,…' } }). A line with a clip plays it
+// (from line.at + .2, when its bubble starts typing) instead of the synthesized cartoon syllables.
+const VOICE_CLIPS = {};
+function voiceClips(clips) { const a = CURRENT_ASSET; if (a) VOICE_CLIPS[a.id] = { ...VOICE_CLIPS[a.id], ...clips }; }
+const voiceClipFor = (sceneId, line) => VOICE_CLIPS[sceneId]?.[line.text.replace(/\*/g, '')];
 // Load every asset listed in REGISTRY (browser only): asset.js first, then the files it lists, in order.
+// Scenes come from the series files first (engine/series.js), so each scene's folder is scenes/<series>/<id>.
 async function loadAssets(load) {
-  for (const [kind, dir] of [['character', 'characters'], ['location', 'locations'], ['scene', 'scenes']]) {
-    for (const id of REGISTRY[dir]) {
-      CURRENT_ASSET = { kind, id, dir: `${dir}/${id}` };
-      try { await load(`${dir}/${id}/asset.js`); } catch { throw new Error(`${dir}/${id}/asset.js is missing (every asset folder needs one: see docs/HANDBOOK.md)`); }
-      for (const f of CURRENT_ASSET.files) await load(`${dir}/${id}/${f}`);
+  for (const sid of REGISTRY.series) {
+    CURRENT_SERIES = sid;
+    try { await load(`scenes/${sid}/series.js`); } catch { throw new Error(`scenes/${sid}/series.js is missing (every series folder needs one: see docs/HANDBOOK.md)`); }
+  }
+  CURRENT_SERIES = null;
+  expandSeries();
+  for (const [kind, key] of [['character', 'characters'], ['location', 'locations'], ['scene', 'scenes']]) {
+    for (const id of REGISTRY[key]) {
+      const dir = kind === 'scene' ? sceneDir(id) : `${key}/${id}`;
+      CURRENT_ASSET = { kind, id, dir };
+      try { await load(`${dir}/asset.js`); } catch { throw new Error(`${dir}/asset.js is missing (every asset folder needs one: see docs/HANDBOOK.md)`); }
+      for (const f of CURRENT_ASSET.files) await load(`${dir}/${f}`);
     }
   }
   CURRENT_ASSET = null;
@@ -35,7 +49,7 @@ const SCENES = {}, CHARACTERS = {}, LOCATIONS = {};
 let SCENE = null;
 function scene(def) {
   const a = CURRENT_ASSET?.kind === 'scene' ? CURRENT_ASSET : null;
-  def.id ??= a?.id; def.title ??= a?.title; def.audio ??= a?.audio; def.music ??= a?.music; def.dialogue ??= a?.dialogue; def.dir ??= a?.dir;
+  def.id ??= a?.id; def.title ??= a?.title; def.audio ??= a?.audio; def.music ??= a?.music; def.dialogue ??= a?.dialogue; def.tts ??= a?.tts; def.dir ??= a?.dir;
   def.shots.sort((x, y) => x[0] - y[0]); def.fps ??= 24; SCENES[def.id] = def; return def;
 }
 function useScene(id) { SCENE = SCENES[id] || null; if (SCENE) { BPM = SCENE.bpm ?? 100; BEAT_OFF = SCENE.beatOffset ?? 0; } return SCENE; }

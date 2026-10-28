@@ -129,16 +129,18 @@ JesterFester/
 ├── ANIMATION_GUIDE.md         short brief on writing scenes/rigs (the rules; this handbook has the detail)
 ├── docs/HANDBOOK.md           ← this file
 ├── package.json / -lock.json  npm dependencies
-├── registry.js                ★ the asset folder names + the movie order
+├── registry.js                ★ the asset folder names, the scene series + which series make the movie
 ├── studio.html                the studio page; also the page render.mjs paints frames in (?render)
 ├── studio/                    the studio UI: studio.js (asset browsers, player) · export.js (in-browser MP4) · studio.css
-├── serve.mjs                  tiny local web server for the studio (npm run studio → http://localhost:5173)
+├── index.html                 the front page: choose the movie studio or the arcade (also the GitHub Pages home)
+├── serve.mjs                  tiny local web server (npm run studio opens http://localhost:5173/studio.html; / is index.html)
 ├── render.mjs                 the command-line renderer / encoder / movie assembler / doctor
 │
 ├── engine/                    shared code, loaded before everything else
 │   ├── core.js                canvas globals, math, timing, jitter, shapes, IK, 2D camera, overlays, SFX, iris, layers, measure
 │   ├── persp.js               3D one-point perspective camera for sets
-│   ├── callout.js             speech / shout / thought bubbles + lip-flap
+│   ├── callout.js             speech / shout / thought / whisper / robot bubbles + lip-flap
+│   ├── series.js              scene series: series(), expandSeries() (shared with scripts/registry.mjs)
 │   ├── timeline.js            scene registry, CHARACTERS/LOCATIONS registries, paintFrame/drawFrame, grain
 │   └── showcase.js            model sheets, character views, location views (used by the studio + test scenes)
 │
@@ -149,9 +151,12 @@ JesterFester/
 ├── locations/
 │   └── throne_room/           throne_room.js (3D set, spots, cameras) · reference_hall.jpg · reference_throne.jpg
 │
-├── scenes/                    every folder: asset.js · README.md (synopsis, script, shot list) · scene.js · (audio.mp3)
-│   ├── scene01_juggling/
-│   └── scene02_fired/
+├── scenes/                    one folder per series, each with series.js (title, category, scene order)
+│   ├── early_episodes/
+│   │   ├── series.js
+│   │   ├── scene01_juggling/  every scene folder: asset.js · README.md (synopsis, script, shot list) · scene.js · (audio.mp3)
+│   │   └── scene02_fired/
+│   └── halloween/ …
 │
 ├── scripts/
 │   ├── build_scene.sh         paint + encode one scene
@@ -176,7 +181,8 @@ JesterFester/
 ```
 render.mjs ──launches──▶ headless Chrome ──opens──▶ studio.html?render&scene=<id>
                                                   │
-     loads in order:  engine/core.js → persp.js → callout.js → timeline.js → showcase.js → registry.js
+     loads in order:  engine/core.js → persp.js → callout.js → timeline.js → showcase.js → series.js → registry.js
+                      → every scenes/<series>/series.js (the scene lists), then
                       → for every folder in registry.js: <folder>/asset.js (the manifest), then the files it lists
                         characters → locations → scenes  (each registers itself / calls scene({...}))
                                                   │
@@ -251,7 +257,9 @@ node render.mjs --scene=scene01_juggling --cols=6 --w=420 \
 | `scripts/preview.sh sheet <id> <times> [cols]` | Contact sheet |
 | `scripts/preview.sh clip <id> <a:b>` | Preview clip |
 | `scripts/preview.sh studio` | Starts `serve.mjs` and opens the studio in your default browser (same as `npm run studio`) |
-| `scripts/new.sh character\|location\|scene <name>` | Creates a self-contained folder (`asset.js`, `README.md`, code) from `scripts/templates/<kind>/` and registers it (a new scene is also appended to the movie order) |
+| `scripts/new.sh character\|location <name>` | Creates a self-contained folder (`asset.js`, `README.md`, code) from `scripts/templates/<kind>/` and registers it in `registry.js` |
+| `scripts/new.sh series <name> [category]` | Creates `scenes/<name>/series.js` and adds the series to `registry.js` (add it to `movieSeries` to put it in the movie) |
+| `scripts/new.sh scene <series> <name>` | Creates `scenes/<series>/<name>/` from `scripts/templates/scene/` and appends it to that series' `series.js` |
 
 ### 5.3 The studio
 
@@ -263,7 +271,7 @@ You can also double-click `studio.html` (`file://`): synthesized music works the
 
 The sidebar lists every asset from `registry.js`:
 
-**🎬 Scenes** (movie scenes numbered, 🧪 test scenes after them)
+**🎬 Scenes**, grouped by category and series (movie scenes numbered)
 - A **shot timeline**: one block per shot, labelled with the shot function's name. Click one to jump to its start; the playing shot is highlighted.
 - A scrubber, ⏮ ◀︎ ▶ ▶︎ ⏭, speed (¼× – 2×) and loop. The readout shows time, frame number, the shot and the time inside the shot.
 - **Audio preview**: if the scene's `audio` file exists, it plays in sync (the header shows `audio: ♪ …` or `none yet`).
@@ -305,7 +313,7 @@ Frames are painted **in parallel and out of order**, so a shot must compute ever
 ### 6.2 Scenes, shots and cuts
 
 ```js
-scene({ id, title, duration, fps: 24, bpm: 100, audio: 'scenes/<id>/audio.mp3',
+scene({ id, title, duration, fps: 24, bpm: 100, audio: 'scenes/<series>/<id>/audio.mp3',
         shots: [[0, shotA], [7.5, shotB], ...] });
 ```
 
@@ -415,7 +423,7 @@ const said = callout(text, ax, ay, age, {
   maxW: 720,       // wrap width px
   cps: 18,         // typing speed, chars per second
   hold: 1.6,       // seconds the full line stays up after typing (or dur: total)
-  kind: 'talk',    // 'talk' | 'shout' (spiky) | 'think' (cloud with dots)
+  kind: 'talk',    // 'talk' | 'shout' (spiky) | 'think' (cloud with dots) | 'whisper' (small, dashed, grey) | 'robot' (riveted panel, monospaced)
   accent,          // colour for *asterisked* words
 });
 jester(..., { mouth: lipFlap(t, said.talking, 'grin') });
@@ -454,10 +462,10 @@ jester(..., { mouth: lipFlap(t, said.talking, 'grin') });
 
 ### 8.1 Every asset is a self-contained folder
 
-Everything about a character, location or scene lives in its own folder: code, description, script, reference art and audio. `registry.js` only lists the folder names (and the movie order).
+Everything about a character, location or scene lives in its own folder: code, description, script, reference art and audio. `registry.js` only lists the folder names, the scene series, and which series make the movie.
 
 ```
-characters/<id>/                      locations/<id>/                     scenes/<id>/
+characters/<id>/                      locations/<id>/                     scenes/<series>/<id>/
 ├── asset.js    manifest              ├── asset.js    manifest            ├── asset.js    manifest
 ├── README.md   who they are, look,   ├── README.md   description,        ├── README.md   synopsis, script,
 │               personality, rig API  │               layout, spots,      │               shot list, editing notes
@@ -479,12 +487,28 @@ asset({
   audio: 'audio.mp3',                               // scenes: soundtrack (optional; silence if missing)
   cast: ['princess_pearl', 'jester_fester'],        // scenes: character ids (the studio cross-links them)
   locations: ['throne_room'],                       // scenes: location ids
+  uses: ['scene01_juggling'],                       // scenes: earlier scenes whose helper files this one borrows (optional)
 });
 ```
 
 Paths in a manifest are relative to its folder. A scene's `id`, `title` and `audio` come from its manifest, so `scene.js` only declares `duration`, `fps`, `bpm` and `shots`.
 
-**Loading.** For each folder in `registry.js` (characters → locations → scenes), the studio loads `asset.js` and then the files it lists. So a scene can use any character or location.
+**Series.** Scenes are grouped into series, and series into categories. Each series is a folder, `scenes/<series>/`, with a `series.js` that lists its scene folders in order:
+
+```js
+series({
+  title: 'Halloween',
+  category: 'Professor Safadi Studio',                        // the studio groups series under their category
+  logline: 'Alma and Jenna plan Halloween, build Robo-Safadi…',
+  scenes: ['scene16_spooky_plan', 'scene17_broccoli_directive', /* … */],
+});
+```
+
+`registry.js` lists the series (`series`) and the ones whose scenes, in order, make the movie (`movieSeries`). Adding a scene only touches its own series' file, so people working on different series don't edit the same lines. Numbering is up to each series; scene ids (the folder names) must be unique across all series, and the studio stops with an error if two series use the same one.
+
+**Loading.** The studio first runs every `series.js`, then, for each folder (characters → locations → scenes), loads `asset.js` and the files it lists. So a scene can use any character or location.
+
+A scene can also call helpers defined in an earlier scene's files (scene 20 draws scene 17's Halloween props). The studio loads every scene, so that just works there; list those scenes in `uses` so **Export JavaScript**, which bundles one scene on its own, includes their helper files (everything but their `scene.js`).
 
 **The code registers the runtime parts:**
 - `CHARACTERS.<id> = { draw, unit, size, poses }`: poses appear as the studio's pose chips and the model sheet.
@@ -502,17 +526,26 @@ Paths in a manifest are relative to its folder. A scene's `id`, `title` and `aud
 | 🎓 Professor Safadi | [characters/safadi/README.md](../characters/safadi/README.md): personality, powers, look and palette, proportions, poses, rig + `safadiBoard` API |
 | 💃 Alma | [characters/alma/README.md](../characters/alma/README.md): personality, dance powers, look and palette, proportions, poses, rig + `almaDance` API |
 | 🐉 Dragon | [characters/dragon/README.md](../characters/dragon/README.md): personality, look, flight poses, rig + `dragonFlight` API |
+| 🤖 Robo-Safadi | [characters/robo_safadi/README.md](../characters/robo_safadi/README.md): personality, powers (activate, scan, hover, steam, glitch), look and palette, proportions, poses, rig + march API, the `robot` voice |
+| 🟧 Clawd | [characters/clawd/README.md](../characters/clawd/README.md): the LLM, ported from PDoomVideo; look and palette, proportions, poses, rig API (moods, `holo` hologram look) |
+| 🐬 Neptune | [characters/neptune/README.md](../characters/neptune/README.md): the self-declared "King Neptune"; personality, water powers, look and palette, spine rig, poses, rig + `neptuneBlast` API |
 | 🏰 Throne room | [locations/throne_room/README.md](../locations/throne_room/README.md): description, layout and coordinates, spots, camera presets, API |
 | 🏫 Dove Creek Elementary | [locations/dces/README.md](../locations/dces/README.md): description, layout and coordinates, spots, camera presets, API |
 | 🎓 Lecture hall | [locations/lecture_hall/README.md](../locations/lecture_hall/README.md): tiered university hall with a podium view and a classroom (reverse-angle) view, seats, boards and screen hooks, API |
 | ⚽ County soccer field | [locations/soccer_field/README.md](../locations/soccer_field/README.md): regulation pitch shot from both ends (`dir: ±1`) and from the air, goals, bleachers, shelters, snack bar, scoreboard, 16 camera presets, API |
-| 🎬 01 Juggling in the throne room | [scenes/scene01_juggling/README.md](../scenes/scene01_juggling/README.md): synopsis, script, shot list, constants |
-| 🎬 02 Fired! | [scenes/scene02_fired/README.md](../scenes/scene02_fired/README.md): synopsis, script, shot list, constants |
-| 🎬 03 Once a dragon | [scenes/scene03_once_a_dragon/README.md](../scenes/scene03_once_a_dragon/README.md): synopsis, script, shot list, constants |
-| 🎬 04 The healthy promise | [scenes/scene04_healthy_promise/README.md](../scenes/scene04_healthy_promise/README.md): synopsis, script, shot list, constants |
-| 🎬 05 Dragon Counts by Threes | [scenes/scene05_dragon_counts/README.md](../scenes/scene05_dragon_counts/README.md): synopsis, script, shot list, multiplication board |
-| 🎬 06 The prime-number puzzle | [scenes/scene06_riemann/README.md](../scenes/scene06_riemann/README.md): DCES lesson, Riemann hypothesis diagrams, three cartoon voices |
-| 🎬 07 The Message Comes First | [scenes/scene07_message_first/README.md](../scenes/scene07_message_first/README.md): lecture hall, cuts between podium and classroom (reverse-angle) views, silent student reactions |
+| 🏠 House | [locations/house/README.md](../locations/house/README.md): two-storey brick home from the front lawn, porch, wing, garden and clover, 9 camera presets, API |
+| 🔬 Science room | [locations/science_room/README.md](../locations/science_room/README.md): DCES science lab with a teacher view and a classroom (reverse-angle) view, lab benches, demo-bench experiments (`bubbling`), whiteboard hook, 12 camera presets, API |
+| 📚 School library | [locations/school_library/README.md](../locations/school_library/README.md): DCES library with a desk view and a reading-room (reverse-angle) view, reading tables, bookcases, story corner, sunbeams (`sun`), table lamps (`lamps`), desk bell (`ding`), BOOK OF THE MONTH board hook, 15 camera presets, API |
+| 🪑 Professor Safadi's study | [locations/safadi_study/README.md](../locations/safadi_study/README.md): Safadi's home study with a desk view and a fireside (reverse-angle) view, fireplace (`fire`), lamps (`lamp`), day/night window (`night`), Newton's cradle, chalkboard hook, 13 camera presets, API |
+| 🩺 Dr. Sami's clinic | [locations/sami_clinic/README.md](../locations/sami_clinic/README.md): Doctor Sami's clinic office with a desk view and an exam (reverse-angle) view, heart monitor and heart model (`bpm`), privacy curtain (`curtain`), blinds (`blinds`), X-ray light-box hook, 13 camera presets, API |
+| 🏀 School gym | [locations/school_gym/README.md](../locations/school_gym/README.md): DCES gym with a scoreboard view and a stage (reverse-angle) view, court and hoops (`swish`), live scoreboard (`score`, `clock`, `buzzer`), stage curtains (`curtain`) and raisable stage hoop (`stageHoopUp`), bleachers, climbing rope (`rope`), 13 camera presets, API |
+| 🎬 01 Juggling in the throne room | [scenes/early_episodes/scene01_juggling/README.md](../scenes/early_episodes/scene01_juggling/README.md): synopsis, script, shot list, constants |
+| 🎬 02 Fired! | [scenes/early_episodes/scene02_fired/README.md](../scenes/early_episodes/scene02_fired/README.md): synopsis, script, shot list, constants |
+| 🎬 03 Once a dragon | [scenes/early_episodes/scene03_once_a_dragon/README.md](../scenes/early_episodes/scene03_once_a_dragon/README.md): synopsis, script, shot list, constants |
+| 🎬 04 The healthy promise | [scenes/early_episodes/scene04_healthy_promise/README.md](../scenes/early_episodes/scene04_healthy_promise/README.md): synopsis, script, shot list, constants |
+| 🎬 05 Dragon Counts by Threes | [scenes/early_episodes/scene05_dragon_counts/README.md](../scenes/early_episodes/scene05_dragon_counts/README.md): synopsis, script, shot list, multiplication board |
+| 🎬 06 The prime-number puzzle | [scenes/early_episodes/scene06_riemann/README.md](../scenes/early_episodes/scene06_riemann/README.md): DCES lesson, Riemann hypothesis diagrams, three cartoon voices |
+| 🎬 07 The Message Comes First | [scenes/early_episodes/scene07_message_first/README.md](../scenes/early_episodes/scene07_message_first/README.md): lecture hall, cuts between podium and classroom (reverse-angle) views, silent student reactions |
 
 The series-level story, tone and episode list are in [SERIES.md](../SERIES.md).
 
@@ -528,7 +561,7 @@ node render.mjs --modelsheet=jester_fester          # → out/check/modelsheet_j
 
 ### 9.1 Iterating on a scene
 
-1. Keep the studio open (`npm run studio`) on the scene. Edit `scenes/<id>/scene.js`, then reload the page (⌘R / Ctrl+R) to see the change; scrub, play and step frames.
+1. Keep the studio open (`npm run studio`) on the scene. Edit `scenes/<series>/<id>/scene.js`, then reload the page (⌘R / Ctrl+R) to see the change; scrub, play and step frames.
 2. For fixed side-by-side comparisons, check a contact sheet: `node render.mjs --scene=<id> --sheet=<times> --cols=3` and open `out/check/<id>.jpg`.
    - Check the first and last frame of each shot, the moment of each hit, and every cut.
    - Check that text is readable, faces aren't covered, and nothing important is cut off at the frame edge.
@@ -562,7 +595,7 @@ node render.mjs --modelsheet=jester_fester          # → out/check/modelsheet_j
 
 ### 9.4 Adding a scene
 
-1. `scripts/new.sh scene sceneNN_name` creates `scenes/sceneNN_name/` with `asset.js`, a `README.md` skeleton and a working `scene.js`, and adds it to the registry **and the end of the movie order**. Reorder `REGISTRY.movie` if needed.
+1. `scripts/new.sh scene <series> sceneNN_name` creates `scenes/<series>/sceneNN_name/` with `asset.js`, a `README.md` skeleton and a working `scene.js`, and appends it to `scenes/<series>/series.js`. If the series is in `movieSeries`, the scene is in the movie too; reorder the series' `scenes` list if needed. (A new series: `scripts/new.sh series <name> [category]`.)
 2. Write the scene's `README.md` first: synopsis, script (time · who · line/action) and shot list. Set `title`, `logline`, `cast` and `locations` in `asset.js`.
 3. Implement the shots. The template has one working shot (Fester in the throne room with a callout). Useful patterns to copy:
    - a camera that keeps the feet at a screen height (`hy = feetY - y*k`);
@@ -574,13 +607,13 @@ node render.mjs --modelsheet=jester_fester          # → out/check/modelsheet_j
 
 ### 9.5 Adding music or audio
 
-For synthesized music, add a `music` object to the scene's `asset.js`. Scene 01 is the working example: its `prompt` states the creative intent, while `bpm`, `tonic`, `motif`, `chords`, `sections`, and timed `cues` define the reproducible score. The studio synthesizes the score for playback and browser exports; `render.mjs --encode` synthesizes the same score before encoding. Movie composer trims use the corresponding portion of the score. No source audio file is needed.
+For synthesized music, add a `music` object to the scene's `asset.js`. Scene 01 is the working example: its `prompt` states the creative intent, while `bpm`, `tonic`, `motif`, `chords`, `sections`, and timed `cues` define the reproducible score. The studio synthesizes the score for playback and browser exports; `render.mjs --encode` synthesizes the same score before encoding. Movie composer trims use the corresponding portion of the score. No source audio file is needed. Cue types: `pop`, `ding`, `bonk`, `whoosh`, `plip`, `cricket`, `scratch`, `whistle`, `gulp`, plus `applause` and `drumroll` (both take a `dur` in seconds; `applause` also takes a `level`).
 
 For cartoon vocalizations, add timed `dialogue` entries with `at`, `speaker`, `text`, `cps`, and `hold` in a scene's `asset.js` or `scene({...})`. Use those same entries for `callout()` in the scene so bubble timing and syllables agree. Set each character's `voice` in its `asset.js` with a descriptive `prompt`, a `style` (`bouncy`, `measured`, `sporty`, `melodic`, `regal`, or `rumble`), and optional `baseHz`, `brightness`, `level`, and `pan`. The styles change syllable length, pitch movement and timbre; `energy` on a dialogue entry adjusts one line's intensity. The synthesizer makes vowel-like syllables, not intelligible words; speech bubbles provide the text. Music ducks during dialogue, and the combined soundtrack is used in previews and exports. `kind: 'think'` or `silent: true` keeps an entry silent.
 
 For a recorded soundtrack instead:
 
-1. Save the file as `scenes/<id>/audio.mp3` (the `audio` field in the scene's `asset.js`; any format the browser and ffmpeg can read works if you change the name there).
+1. Save the file as `scenes/<series>/<id>/audio.mp3` (the `audio` field in the scene's `asset.js`; any format the browser and ffmpeg can read works if you change the name there).
 2. Set `bpm` (and `beatOffset` in seconds, if the first beat isn't at 0) in `scene({...})`. Then `pulse(t)` hits on the song's beats.
 3. Re-time hits to land on beats: beat n falls at `beatOffset + n * 60 / bpm`. Put key times (e.g. `HITS`, `FIRE`) on that grid.
 4. Rebuild. The encoder muxes the audio, trimmed to the video length. Without audio, a silent track is added so scenes always concatenate cleanly.
@@ -624,8 +657,8 @@ For a recorded soundtrack instead:
 | Bubble text looks different (not rounded) | The Google Fonts didn't load (offline). Connect and re-render; `--doctor` reports font status |
 | A page error during render (`[page error] …`) | A JS error in a scene or rig. Open `studio.html?scene=<id>&t=<time>` in Chrome to see it (red text + DevTools console) |
 | The video shows an old version of a shot | You rendered with `--resume` or a range. A full `--frames` / `--build` wipes the frames first; delete `out/<id>/frames` if unsure |
-| The movie is missing a scene | Add it to `REGISTRY.movie` in `registry.js` |
-| A registry edit by `new.sh` failed | It needs `python3`. Edit `registry.js` by hand: add `name: ['file.js'],` under the right section |
+| The movie is missing a scene | Add it to its series' `series.js`, and check that the series is in `movieSeries` in `registry.js` |
+| A registry edit by `new.sh` failed | It needs `python3`. Edit by hand: add the id to the right list in `registry.js` (characters, locations, series) or to the series' `series.js` (scenes) |
 | A character is huge, tiny or off-frame | Check the camera: `k = f / (Zchar - cam.z)`; feet y = `hy + cam.y * k` |
 | Something draws enormous or garbled | An object is at or behind the camera (`Z - cam.z` ≤ 15). Use `P.visible(Z)` / `P.poly` (they near-clip), and don't draw characters behind the camera |
 | The shell scripts don't run on Windows | Use Git Bash or WSL, or call `node render.mjs --scene=<id> --build` / `--movie` directly |
@@ -634,7 +667,8 @@ For a recorded soundtrack instead:
 | Studio export: "mp4-muxer is not loaded" | Run `npm install` (it lives in `node_modules/mp4-muxer`) |
 | Studio export has no sound | Synthesized `music` needs no file. For external audio, open the studio with `npm run studio` (http://localhost:5173): under `file://` the browser can't read the audio file |
 | `npm run studio`: port already in use | `node serve.mjs 8080 --open` (any free port) |
-| Studio: red error `…/asset.js is missing` | Every folder listed in `registry.js` needs an `asset.js` (copy one from `scripts/templates/<kind>/`) |
+| Studio: red error `…/asset.js is missing` | Every folder listed in `registry.js` or a `series.js` needs an `asset.js` (copy one from `scripts/templates/<kind>/`) |
+| Studio: red error `scene id "…" is in both …` | Two series list the same scene id. Ids are folder names and must be unique across all series: rename one folder and its entry |
 | Studio: an asset's docs say "Couldn't load … README.md" | Create the README (or fix the `docs` field in `asset.js`) |
 | Studio shows an old version after editing | Reload the page. `serve.mjs` sends `no-store`, so a plain reload always picks up changes |
 

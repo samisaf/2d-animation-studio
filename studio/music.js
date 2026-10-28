@@ -96,6 +96,7 @@ async function buildSceneAudioChunk(sc, sampleRate, musicOffset = 0) {
       }
     }
 
+    let noise = null;                                                     // the shared noise buffer for applause and drumrolls
     for (const cue of score.cues || []) {
       const at = cue.at;
       if (cue.type === 'pop') { bell(at, 14, .17, .22); bell(at + .075, 18, .11, .28); }
@@ -107,6 +108,33 @@ async function buildSceneAudioChunk(sc, sampleRate, musicOffset = 0) {
       else if (cue.type === 'scratch') scratch(at);
       else if (cue.type === 'whistle') for (let i = 0; i < 12; i++) tone(at + i * .045, .07, i % 2 ? 2950 : 2550, .06, 'sine', 0, 2);   // a referee's trill
       else if (cue.type === 'gulp') { thump(at, .12); tone(at + .03, .12, 260, .06, 'sine', 0, 2); tone(at + .1, .1, 180, .05, 'sine', 0, 2); }
+      else if (cue.type === 'applause') applause(at, cue.dur ?? 3, cue.level ?? 1);      // a crowd clapping: swells in, tails off
+      else if (cue.type === 'drumroll') drumroll(at, cue.dur ?? 1);                      // a snare roll that builds to the next hit
+      else if (cue.type === 'splash') splash(at, cue.level ?? 1);                       // a bath splash: a thump and a spray of water
+      else if (cue.type === 'harp') for (let i = 0; i < 12; i++) bell(at + i * .055, 2 + i, .05 + .004 * i, 1.1);   // a rising glissando (into or out of a story)
+    }
+    // filtered bursts from one shared, seeded noise buffer (deterministic: the same soundtrack every render)
+    function noiseHit(at, dur, level, freq, q = 1.2, pan = 0) {
+      if (at < 0 || at >= sc.duration) return;
+      if (!noise) { noise = ctx.createBuffer(1, sampleRate, sampleRate); const d = noise.getChannelData(0), r = mulberry(24); for (let i = 0; i < d.length; i++) d[i] = r() * 2 - 1; }
+      const src = ctx.createBufferSource(), filter = ctx.createBiquadFilter(), env = ctx.createGain(), stereo = ctx.createStereoPanner(), end = Math.min(sc.duration, at + dur);
+      src.buffer = noise; filter.type = 'bandpass'; filter.frequency.value = freq; filter.Q.value = q; stereo.pan.value = pan;
+      env.gain.setValueAtTime(.0001, at); env.gain.linearRampToValueAtTime(level, Math.min(end, at + .004)); env.gain.exponentialRampToValueAtTime(.0001, end);
+      src.connect(filter).connect(env).connect(stereo).connect(musicBus); src.start(at, hash(at * 91.7) * .9); src.stop(end);
+    }
+    function splash(at, level) {
+      thump(at, .12 * level);
+      for (let i = 0; i < 16; i++) noiseHit(at + i * .02 + hash(i * 1.7 + at) * .06, .16 + .22 * hash(i * 2.9), .24 * level * (1 - i / 18), 600 + 2200 * hash(i * 3.3 + at), .8, hash(i * 5.1) * 1.2 - .6);
+    }
+    function applause(at, dur, level) {
+      const n = Math.floor(dur * 70);
+      for (let i = 0; i < n; i++) {
+        const u = hash(i * 3.17 + at), when = at + u * dur, k = Math.min(1, (when - at) / .35) * (1 - Math.pow((when - at) / dur, 2));
+        noiseHit(when, .05 + .03 * hash(i * 1.3), .3 * level * k, 1100 + 1700 * hash(i * 7.7 + at), 1.4, hash(i * 5.1) * 1.6 - .8);
+      }
+    }
+    function drumroll(at, dur) {
+      for (let x = 0; x < dur - .05; x += .045) noiseHit(at + x, .07, .05 + .12 * (x / dur), 2400, .9, Math.sin(x * 40) * .2);
     }
     // a record scratch: a fast saw sweep down, then back up
     function scratch(at) {
@@ -124,6 +152,15 @@ async function buildSceneAudioChunk(sc, sampleRate, musicOffset = 0) {
   const lines = [...(sc.dialogue || [])].sort((a, b) => a.at - b.at);
   for (const [lineIndex, line] of lines.entries()) {
     if (line.kind === 'think' || line.silent) continue;
+    const clip = voiceClipFor(sc.id, line);
+    if (clip) {                                               // a recorded line (scripts/tts_gemini.mjs): play it as the bubble types
+      const bytes = Uint8Array.from(atob(clip.src.slice(clip.src.indexOf(',') + 1)), c => c.charCodeAt(0));
+      const src = ctx.createBufferSource(), gain = ctx.createGain(), at = line.at + .2;
+      src.buffer = await ctx.decodeAudioData(bytes.buffer);
+      gain.gain.value = (clip.level ?? sc.tts?.level ?? .6) * (line.energy ?? 1);
+      src.connect(gain).connect(voiceBus); if (at < sc.duration) src.start(at);
+      continue;
+    }
     const plain = line.text.replace(/\*/g, ''), cps = line.cps ?? 18;
     const voice = ASSETS.character[line.speaker]?.voice || {};
     const wordPattern = /[A-Za-z]+(?:'[A-Za-z]+)?/g;
@@ -147,7 +184,7 @@ async function buildSceneAudioChunk(sc, sampleRate, musicOffset = 0) {
     const ranges = [];
     for (const line of lines) {
       if (line.kind === 'think' || line.silent) continue;
-      const end = Math.min(sc.duration, line.at + .2 + line.text.replace(/\*/g, '').length / (line.cps ?? 18) + .18);
+      const clip = voiceClipFor(sc.id, line), end = Math.min(sc.duration, line.at + .2 + (clip ? clip.dur : line.text.replace(/\*/g, '').length / (line.cps ?? 18)) + .18);
       if (end <= 0) continue;
       const start = Math.max(0, line.at);
       if (ranges.length && start <= ranges[ranges.length - 1][1] + .25) ranges[ranges.length - 1][1] = Math.max(end, ranges[ranges.length - 1][1]);
@@ -171,20 +208,20 @@ function cartoonSyllable(ctx, bus, at, dur, voice, seed, vowel) {
   const first = ctx.createBiquadFilter(), second = ctx.createBiquadFilter();
   const mix1 = ctx.createGain(), mix2 = ctx.createGain();
   const style = voice.style || 'bouncy', variation = Math.sin(seed * 12.9898 + 3.4);
-  const notes = { measured: [0, 0, -1, 1, -2], sporty: [0, 3, -1, 4, 1], melodic: [0, 3, 5, 2, 7, 4], bouncy: [0, 2, -1, 4], regal: [0, -2, -1, -3, -4], rumble: [0, 1, -2, 2, -1] }[style] || [0, 2, -1, 4];
-  const pitch = (voice.baseHz ?? 220) * 2 ** ((notes[seed % notes.length] + variation * (style === 'measured' ? .35 : .8)) / 12);
-  const bend = { measured: 1.018, sporty: 1.12, melodic: 1.15, bouncy: 1.07, regal: .98, rumble: 1.035 }[style] ?? 1.07;
-  osc.type = style === 'sporty' || style === 'regal' ? 'square' : 'sawtooth';
-  osc.frequency.setValueAtTime(pitch * (style === 'melodic' ? .96 : .91), at);
+  const notes = { measured: [0, 0, -1, 1, -2], sporty: [0, 3, -1, 4, 1], melodic: [0, 3, 5, 2, 7, 4], bouncy: [0, 2, -1, 4], regal: [0, -2, -1, -3, -4], rumble: [0, 1, -2, 2, -1], robot: [0, 0, 0, -5, 0, 0, 7] }[style] || [0, 2, -1, 4];
+  const pitch = (voice.baseHz ?? 220) * 2 ** ((notes[seed % notes.length] + (style === 'robot' ? 0 : variation * (style === 'measured' ? .35 : .8))) / 12);   // robot: a flat monotone
+  const bend = { measured: 1.018, sporty: 1.12, melodic: 1.15, bouncy: 1.07, regal: .98, rumble: 1.035, robot: 1 }[style] ?? 1.07;
+  osc.type = style === 'sporty' || style === 'regal' || style === 'robot' ? 'square' : 'sawtooth';
+  osc.frequency.setValueAtTime(pitch * (style === 'melodic' ? .96 : style === 'robot' ? 1 : .91), at);
   osc.frequency.linearRampToValueAtTime(pitch * bend, Math.min(end, at + dur * .46));
-  osc.frequency.linearRampToValueAtTime(pitch * (style === 'measured' ? .97 : 1), end);
+  osc.frequency.linearRampToValueAtTime(pitch * (style === 'measured' ? .97 : 1), end);   // (robot: bend 1, so it stays flat)
   first.type = second.type = 'bandpass'; first.Q.value = .8; second.Q.value = 1.1;
   first.frequency.value = shape[0] * (voice.brightness ?? 1);
   second.frequency.value = shape[1] * (voice.brightness ?? 1);
   mix1.gain.value = .8; mix2.gain.value = .34;
   envelope.gain.setValueAtTime(.0001, at);
-  const attack = style === 'sporty' ? .008 : style === 'measured' || style === 'rumble' ? .026 : .018;
-  const release = style === 'sporty' || style === 'regal' ? .024 : style === 'measured' || style === 'rumble' ? .06 : .045;
+  const attack = style === 'robot' ? .004 : style === 'sporty' ? .008 : style === 'measured' || style === 'rumble' ? .026 : .018;
+  const release = style === 'robot' ? .008 : style === 'sporty' || style === 'regal' ? .024 : style === 'measured' || style === 'rumble' ? .06 : .045;
   envelope.gain.linearRampToValueAtTime(voice.level ?? .13, Math.min(end, at + attack));
   envelope.gain.setValueAtTime(voice.level ?? .13, Math.max(at + attack, end - release));
   envelope.gain.exponentialRampToValueAtTime(.0001, end);

@@ -2,14 +2,22 @@
 //
 // Every asset is a self-contained folder with an asset.js manifest (title, logline, code files, docs, reference art…),
 // its code, its README.md and its reference art:
-//   characters/<id>/   a character rig (+ its skills and props) · registers itself on CHARACTERS
-//   locations/<id>/    a 3D set · registers itself on LOCATIONS
-//   scenes/<id>/       a scene (shots, script, storyboard, optional audio) · calls scene({...})
+//   characters/<id>/            a character rig (+ its skills and props) · registers itself on CHARACTERS
+//   locations/<id>/             a 3D set · registers itself on LOCATIONS
+//   scenes/<series>/<id>/       a scene (shots, script, storyboard, optional audio) · calls scene({...})
+// Scenes are grouped into series. scenes/<series>/series.js gives the series a title and a category and lists its
+// scene folders in order, so adding a scene only touches that series' file. Scene ids stay unique across all series.
 // Folders load in this order: characters → locations → scenes, so scenes may use any character or location.
 
 const REGISTRY = {
-  characters: ['jester_fester', 'princess_pearl', 'safadi', 'robo_safadi', 'clawd', 'alma', 'dragon', 'housam', 'danny', 'sami', 'jenna', 'sarah', 'roudaynah', 'patrick'],
-  locations: ['throne_room', 'dces', 'lecture_hall', 'soccer_field', 'umn', 'meadow-ridge-elementary-school', 'home_clinic'],
-  scenes: ['scene01_juggling', 'scene02_fired', 'scene03_once_a_dragon', 'scene04_healthy_promise', 'scene05_dragon_counts', 'scene06_riemann', 'scene07_message_first', 'scene08_multitasking', 'scene09_hat_trick', 'scene10_great_debate', 'scene11_hydration_debate', 'scene12_umn', 'scene13_deal_with_it', 'scene14_vent_tutor', 'meadow-ridge-elementary-school', 'scene15_jenna_division', 'scene16_employment_etiquette', 'scene17_access_recirculation', 'scene18_crrt_timing', 'scene19_ihd_vs_crrt', 'scene20_giraffe_groove', 'scene21_imru_al_qays'],
-  movie: ['scene01_juggling', 'scene02_fired', 'scene03_once_a_dragon', 'scene04_healthy_promise', 'scene05_dragon_counts', 'scene06_riemann', 'scene07_message_first', 'scene08_multitasking', 'scene09_hat_trick', 'scene10_great_debate', 'scene11_hydration_debate', 'scene12_umn', 'scene13_deal_with_it', 'scene14_vent_tutor', 'scene16_employment_etiquette', 'scene17_access_recirculation', 'scene18_crrt_timing', 'scene19_ihd_vs_crrt', 'scene20_giraffe_groove', 'scene21_imru_al_qays'],        // default composer order and node render.mjs --movie
+  characters: ['jester_fester', 'princess_pearl', 'safadi', 'alma', 'dragon', 'housam', 'danny', 'sami', 'jenna', 'robo_safadi', 'clawd', 'student', 'neptune', 'sarah', 'roudaynah', 'patrick'],
+  locations: ['throne_room', 'dces', 'lecture_hall', 'soccer_field', 'umn', 'house', 'science_room', 'school_library', 'safadi_study', 'sami_clinic', 'school_gym', 'alma_bedroom', 'roman_bath', 'ancient_athens', 'living_room', 'housam_bedroom', 'meadow-ridge-elementary-school', 'home_clinic'],
+  series: [
+    // Professor Safadi Studio
+    'early_episodes', 'soccer_showdown', 'halloween', 'book_fair', 'talent_show', 'lectures', 'cleaning_up', 'screen_time', 'the_trolls',
+    // Sami's studio
+    'dr_sami_lessons', 'sami_shorts',
+  ],
+  movieSeries: ['early_episodes', 'soccer_showdown', 'halloween', 'book_fair', 'talent_show', 'lectures', 'cleaning_up', 'screen_time', 'the_trolls'],   // their scenes, in order, are the default composer order and node render.mjs --movie
+  // Filled in from the series files by expandSeries() (engine/series.js): scenes (every scene id), movie (scene ids), sceneSeries (id → series).
 };
